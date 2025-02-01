@@ -6,11 +6,11 @@ async fn main() {
     //set screen size
     let screen_width: f32 = 900.0;
     let screen_height: f32 = 900.0;
-    request_new_screen_size(900.0, 900.0);
+    request_new_screen_size(900.0, 920.0);
 
     //constants
-    let columns = 10;
-    let rows = 10;
+    let columns = 30;
+    let rows = 30;
     let column_size = (screen_width as i32) / columns;
     let row_size = (screen_height as i32) / rows;
 
