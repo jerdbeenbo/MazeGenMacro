@@ -5,6 +5,7 @@ use macroquad::prelude::*;
     Have the generation run on multiple threads to speed up times
     Animate maze generation
     Wait for input for maze generation (different input for animated or not)
+    Add a "completion line" option after maze is generated -> solve_maze()
 
 */
 
@@ -66,6 +67,8 @@ async fn main() {
 
 fn draw_maze_unanimated(cells: &Vec<Cell>, columns_size: i32, row_size: i32) {
 
+    let line_colour: Color = BLACK;
+
     //loop through all cells
     for cell in cells {
 
@@ -74,16 +77,16 @@ fn draw_maze_unanimated(cells: &Vec<Cell>, columns_size: i32, row_size: i32) {
 
         //draw lines on active walls
         if cell.bottom_active {
-            draw_line(x, y + row_size as f32, x + columns_size as f32, y + row_size as f32, 1.0, RED);
+            draw_line(x, y + row_size as f32, x + columns_size as f32, y + row_size as f32, 1.0, line_colour);
         }
         if cell.top_active {
-            draw_line(x, y, x + columns_size as f32, y, 1.0, RED);
+            draw_line(x, y, x + columns_size as f32, y, 1.0, line_colour);
         }
         if cell.right_active {
-            draw_line(x + columns_size as f32, y, x + columns_size as f32, y + row_size as f32, 1.0, RED);
+            draw_line(x + columns_size as f32, y, x + columns_size as f32, y + row_size as f32, 1.0, line_colour);
         }
         if cell.left_active {
-            draw_line(x, y, x, y + row_size as f32, 1.0, RED);
+            draw_line(x, y, x, y + row_size as f32, 1.0, line_colour);
         }
     }
 }
@@ -102,7 +105,7 @@ fn get_unvisited_neighbours(index: usize, cells: &mut Vec<Cell>, columns: i32, r
         //left neighbour exists, store index information, check if univisited and save
         let l_index = index - 1;
 
-        if cells[l_index].visited == false {
+        if l_index < cells.len() && !cells[l_index].visited {
             neighbours.push(l_index);
         }
     }
@@ -110,15 +113,17 @@ fn get_unvisited_neighbours(index: usize, cells: &mut Vec<Cell>, columns: i32, r
         //right neighbour exists, store index information, check if univisited and save
         let r_index = index + 1;
 
-        if cells[r_index].visited == false {
+        if r_index < cells.len() && !cells[r_index].visited {
             neighbours.push(r_index);
         }
     }
     if cells[index].row_position > 0 {
         //top neighbour exists, store index information, check if univisited and save
         //let t_index = index - columns_as_usize;
+        //try statement to prevent overflow panic, if overflow would have occured neighbour doesnt exist and skip
         if let Some(t_index) = index.checked_sub(columns_as_usize) {
-            if cells[t_index].visited == false {
+
+            if t_index < cells.len() && !cells[t_index].visited {
                 neighbours.push(t_index);
             }
         }
@@ -126,8 +131,10 @@ fn get_unvisited_neighbours(index: usize, cells: &mut Vec<Cell>, columns: i32, r
     if cells[index].row_position < rows - 1 {
         //bottom neighbour exists, store index information, check if univisited and save
         //let b_index = index + columns_as_usize;
-        if let Some(b_index) = index.checked_sub(columns_as_usize) {
-            if cells[b_index].visited == false {
+        //try statement to prevent overflow panic, if overflow would have occured neighbour doesnt exist and skip
+        if let Some(b_index) = index.checked_add(columns_as_usize) {
+                       
+            if b_index < cells.len() && !cells[b_index].visited {
                 neighbours.push(b_index);
             }
         }
@@ -171,7 +178,9 @@ fn generate_maze(cells: &mut Vec<Cell>, c: i32, r: i32) {
 
                 //pick a random neighbour to move to
                 let neighbour_chosen: usize = rand::gen_range(0, current_neighbours.len());
-                
+                let next_cell = current_neighbours[neighbour_chosen];
+                cells[current_neighbours[neighbour_chosen]].visited = true;
+
                 //determine which wall is being removed for moving and remove walls
                 remove_walls(current_neighbours[neighbour_chosen], current_cell_index, cells);
 
@@ -179,13 +188,14 @@ fn generate_maze(cells: &mut Vec<Cell>, c: i32, r: i32) {
                 backtracking_stack.push(current_cell_index);
 
                 //set current cell to chosen neighbour
-                current_cell_index = current_neighbours[neighbour_chosen];
+                current_cell_index = next_cell;
             }
             else {
                 //no viable neighbours, we need to backtrack
 
                 if backtracking_stack.len() == 0 {
                     //is empty, generation is complete
+
                     generating = false;
                 }
                 else {
@@ -204,12 +214,16 @@ fn remove_walls(neighbour: usize, c_index: usize, cells: &mut Vec<Cell>) {
     if cells[neighbour].col_position > cells[c_index].col_position {
         //we moved right
 
+        //println!("Moving right from {} to {}", c_index, neighbour);
+
         //remove walls
         cells[neighbour].left_active = false;
         cells[c_index].right_active = false;  
     }
     if cells[neighbour].col_position < cells[c_index].col_position {
         //we moved left
+
+        //println!("Moving left from {} to {}", c_index, neighbour);
 
         //remove walls
         cells[neighbour].right_active = false;
@@ -218,6 +232,8 @@ fn remove_walls(neighbour: usize, c_index: usize, cells: &mut Vec<Cell>) {
     if cells[neighbour].row_position > cells[c_index].row_position {
         //we moved down
 
+        //println!("Moving down from {} to {}", c_index, neighbour);
+
         //remove walls
         cells[neighbour].top_active = false;
         cells[c_index].bottom_active = false;        
@@ -225,10 +241,17 @@ fn remove_walls(neighbour: usize, c_index: usize, cells: &mut Vec<Cell>) {
     if cells[neighbour].row_position < cells[c_index].row_position {
         //we moved up
 
+        //println!("Moving up from {} to {}", c_index, neighbour);
+
         //remove walls
         cells[neighbour].bottom_active = false;
         cells[c_index].top_active = false;
     }
+
+    //remove top of first cell wall and bottom of last cell wall
+
+    cells[0].top_active = false;
+
 }
 
 fn cell_setup(c: i32, r: i32) -> Vec<Cell>{
