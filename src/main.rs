@@ -1,6 +1,12 @@
-use std::thread::current;
-
 use macroquad::prelude::*;
+
+/*
+    Upgrades:
+    Have the generation run on multiple threads to speed up times
+    Animate maze generation
+    Wait for input for maze generation (different input for animated or not)
+
+*/
 
 //Cell structure to represent each cell in the grid
 struct Cell {
@@ -39,32 +45,62 @@ async fn main() {
     //Generate maze (Recursive Backtracking)
     generate_maze(&mut cells, columns, rows);
 
+    let mut show_maze: bool = false;
+
     loop {
         clear_background(GRAY);
         //draw_text("Hello!", 20.0, 20.0, 30.0, RED);
+
+        //draw the maze
+        if is_key_pressed(KeyCode::G) {
+            show_maze = true;
+        }
+
+        if show_maze {
+            draw_maze_unanimated(&cells, column_size, row_size); 
+        }
 
         next_frame().await
     }
 }
 
+fn draw_maze_unanimated(cells: &Vec<Cell>, columns_size: i32, row_size: i32) {
+
+    //loop through all cells
+    for cell in cells {
+
+        let x: f32 = cell.col_position as f32 * columns_size as f32;
+        let y: f32 = cell.row_position as f32 * row_size as f32;
+
+        //draw lines on active walls
+        if cell.bottom_active {
+            draw_line(x, y + row_size as f32, x + columns_size as f32, y + row_size as f32, 1.0, RED);
+        }
+        if cell.top_active {
+            draw_line(x, y, x + columns_size as f32, y, 1.0, RED);
+        }
+        if cell.right_active {
+            draw_line(x + columns_size as f32, y, x + columns_size as f32, y + row_size as f32, 1.0, RED);
+        }
+        if cell.left_active {
+            draw_line(x, y, x, y + row_size as f32, 1.0, RED);
+        }
+    }
+}
+
 fn get_unvisited_neighbours(index: usize, cells: &mut Vec<Cell>, columns: i32, rows: i32) -> Vec<usize>{
-    /*
-    Check one of the 4 potential neighbours randomly,
-    + 1 for right neighbour
-    - 1 for left neighbour
-    - 40 for top neighbour
-    + 40 for bottom neighbour
-    */
+
+    let columns_as_usize: usize = columns as usize;
 
     //store neighbours
     let mut neighbours: Vec<usize> = Vec::new();
     //create index variables for storing
-    let (l_index, r_index, t_index, b_index): (usize, usize, usize, usize);
+    //let (l_index, r_index, t_index, b_index): (usize, usize, usize, usize);
 
     //get all neighbours || declare what neighbours are possible
     if cells[index].col_position > 0 {
         //left neighbour exists, store index information, check if univisited and save
-        l_index = index - 1;
+        let l_index = index - 1;
 
         if cells[l_index].visited == false {
             neighbours.push(l_index);
@@ -72,7 +108,7 @@ fn get_unvisited_neighbours(index: usize, cells: &mut Vec<Cell>, columns: i32, r
     }
     if cells[index].col_position < columns - 1 {
         //right neighbour exists, store index information, check if univisited and save
-        r_index = index + 1;
+        let r_index = index + 1;
 
         if cells[r_index].visited == false {
             neighbours.push(r_index);
@@ -80,18 +116,20 @@ fn get_unvisited_neighbours(index: usize, cells: &mut Vec<Cell>, columns: i32, r
     }
     if cells[index].row_position > 0 {
         //top neighbour exists, store index information, check if univisited and save
-        t_index = index - columns as usize;
-
-        if cells[t_index].visited == false {
-            neighbours.push(t_index);
+        //let t_index = index - columns_as_usize;
+        if let Some(t_index) = index.checked_sub(columns_as_usize) {
+            if cells[t_index].visited == false {
+                neighbours.push(t_index);
+            }
         }
     }
     if cells[index].row_position < rows - 1 {
         //bottom neighbour exists, store index information, check if univisited and save
-        b_index = index + columns as usize;
-
-        if cells[b_index].visited == false {
-            neighbours.push(b_index);
+        //let b_index = index + columns_as_usize;
+        if let Some(b_index) = index.checked_sub(columns_as_usize) {
+            if cells[b_index].visited == false {
+                neighbours.push(b_index);
+            }
         }
     }
 
@@ -201,7 +239,6 @@ fn cell_setup(c: i32, r: i32) -> Vec<Cell>{
         for col in 0..(c as i32) { //NEEDS TO BE THE SAME AS COLUMNS  
             for row in 0..(r as i32) { //NEEDS TO BE THE SAME AS ROWS
                 //draw_rectangle_lines((i*column_size) as f32, (x*row_size) as f32, column_size as f32, row_size as f32, 1.0, BLACK);
-                println!("Working");
                 cells.push(Cell { 
                     row_position: row, 
                     col_position: col, 
