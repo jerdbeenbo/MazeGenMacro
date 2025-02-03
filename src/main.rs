@@ -35,8 +35,9 @@ async fn main() {
     //set up cells
     let mut cells: Vec<Cell> = cell_setup(columns, rows);
 
+
     //Generate maze (Recursive Backtracking)
-    generate_maze(&mut cells);
+    generate_maze(&mut cells, columns, rows);
 
     loop {
         clear_background(GRAY);
@@ -46,38 +47,149 @@ async fn main() {
     }
 }
 
-fn generate_maze(cells: &mut Vec<Cell>) {
+fn get_unvisited_neighbours(index: usize, cells: &mut Vec<Cell>, columns: i32, rows: i32) -> Vec<usize>{
+    /*
+    Check one of the 4 potential neighbours randomly,
+    + 1 for right neighbour
+    - 1 for left neighbour
+    - 40 for top neighbour
+    + 40 for bottom neighbour
+    */
+
+    //store neighbours
+    let mut neighbours: Vec<usize> = Vec::new();
+    //create index variables for storing
+    let (l_index, r_index, t_index, b_index): (usize, usize, usize, usize);
+
+    //get all neighbours || declare what neighbours are possible
+    if cells[index].col_position > 0 {
+        //left neighbour exists, store index information, check if univisited and save
+        l_index = index - 1;
+
+        if cells[l_index].visited == false {
+            neighbours.push(l_index);
+        }
+    }
+    if cells[index].col_position < columns - 1 {
+        //right neighbour exists, store index information, check if univisited and save
+        r_index = index + 1;
+
+        if cells[r_index].visited == false {
+            neighbours.push(r_index);
+        }
+    }
+    if cells[index].row_position > 0 {
+        //top neighbour exists, store index information, check if univisited and save
+        t_index = index - columns as usize;
+
+        if cells[t_index].visited == false {
+            neighbours.push(t_index);
+        }
+    }
+    if cells[index].row_position < rows - 1 {
+        //bottom neighbour exists, store index information, check if univisited and save
+        b_index = index + columns as usize;
+
+        if cells[b_index].visited == false {
+            neighbours.push(b_index);
+        }
+    }
+
+    return neighbours;
+}
+
+fn generate_maze(cells: &mut Vec<Cell>, c: i32, r: i32) {
 
     //stack to keep track of visited cells
-    let visited: Vec<Cell> = Vec::new();
-    
+    let mut visited_cell_index: Vec<usize> = Vec::new();
+
+    //backtracking stack for when hitting a dead end
+    let mut backtracking_stack: Vec<usize> = Vec::new();
     
     //start at cell 0
     let mut current_cell_index = 0;
 
-    let generating: bool = true;
+    let mut generating: bool = true;
 
     //iterate over all the avaliable cells starting at cell 0 (top left corner)
     while generating {
         //check if this cell has been visited
-        if cells.len() == visited.len() {
+        if cells.len() == visited_cell_index.len() {
             //generation complete
+            generating = false;
 
         }
-        else {
-            //there are still unvisited cells
-            //get unvisited neighbours
-            //randomly choose one neighbour
-            //remove walls between current and chosen cell
-            //make the chosen cell the new current cell
-            //add current cell to visited stack
+        else {        
+            //get current neighbours of the cell
+            let current_neighbours: Vec<usize> = get_unvisited_neighbours(current_cell_index, cells, c, r);
 
-            //add current cell to visited
-            
-            //mark current cell as visited
-            cells[current_cell_index].visited = true;
-            visited.push(cells[current_cell_index]);
+            //check if there are any viable neighbours recorded
+            if current_neighbours.len() > 0 {
+                //we have potential neighbours
+
+                //mark current cell as visited and store cell index in visted stack
+                cells[current_cell_index].visited = true;
+                visited_cell_index.push(current_cell_index);
+
+                //pick a random neighbour to move to
+                let neighbour_chosen: usize = rand::gen_range(0, current_neighbours.len());
+                
+                //determine which wall is being removed for moving and remove walls
+                remove_walls(current_neighbours[neighbour_chosen], current_cell_index, cells);
+
+                //add current cell to backtracking stack
+                backtracking_stack.push(current_cell_index);
+
+                //set current cell to chosen neighbour
+                current_cell_index = current_neighbours[neighbour_chosen];
+            }
+            else {
+                //no viable neighbours, we need to backtrack
+
+                if backtracking_stack.len() == 0 {
+                    //is empty, generation is complete
+                    generating = false;
+                }
+                else {
+                    //save cell index to last position
+                    current_cell_index = backtracking_stack.pop().unwrap();                    
+                }
+            }
+
         }
+    }
+}
+
+fn remove_walls(neighbour: usize, c_index: usize, cells: &mut Vec<Cell>) {
+
+    //determine which direction we moved
+    if cells[neighbour].col_position > cells[c_index].col_position {
+        //we moved right
+
+        //remove walls
+        cells[neighbour].left_active = false;
+        cells[c_index].right_active = false;  
+    }
+    if cells[neighbour].col_position < cells[c_index].col_position {
+        //we moved left
+
+        //remove walls
+        cells[neighbour].right_active = false;
+        cells[c_index].left_active = false;  
+    }
+    if cells[neighbour].row_position > cells[c_index].row_position {
+        //we moved down
+
+        //remove walls
+        cells[neighbour].top_active = false;
+        cells[c_index].bottom_active = false;        
+    }
+    if cells[neighbour].row_position < cells[c_index].row_position {
+        //we moved up
+
+        //remove walls
+        cells[neighbour].bottom_active = false;
+        cells[c_index].top_active = false;
     }
 }
 
