@@ -25,6 +25,14 @@ struct Cell {
     visited: bool
 }
 
+//Structure for holding our state (used for animation)
+struct MazeState {
+    visited_cell_index: Vec<usize>,
+    backtracking_stack: Vec<usize>,
+    current_cell_index: usize,
+    generating: bool
+}
+
 #[macroquad::main("Maze Generator")]
 async fn main() {
 
@@ -42,26 +50,94 @@ async fn main() {
     //set up cells
     let mut cells: Vec<Cell> = cell_setup(columns, rows);
 
+    //initialise maze state
+    let mut maze_state: MazeState = initialise_maze_state();
 
-    //Generate maze (Recursive Backtracking)
-    generate_maze(&mut cells, columns, rows);
+
+    //Generate maze (Recursive Backtracking) /*this will be unanimated */
+    //generate_maze(&mut cells, columns, rows);
 
     let mut show_maze: bool = false;
 
     loop {
         clear_background(GRAY);
-        //draw_text("Hello!", 20.0, 20.0, 30.0, RED);
-
-        //draw the maze
+    
         if is_key_pressed(KeyCode::G) {
             show_maze = true;
         }
-
+    
         if show_maze {
-            draw_maze_unanimated(&cells, column_size, row_size); 
+            // Draw the current state of the maze
+            draw_maze_unanimated(&cells, column_size, row_size);
+    
+            // If still generating, do one step
+            if maze_state.generating {
+                generate_maze_step(&mut cells, &mut maze_state, columns, rows);
+            }
         }
-
+    
         next_frame().await
+    }
+}
+
+fn generate_maze_step(cells: &mut Vec<Cell>, state: &mut MazeState, columns: i32, rows: i32) {
+    
+    //check if we are still generating
+    if !state.generating {
+        return;
+    }
+    else {
+        // Check if complete
+        if cells.len() == state.visited_cell_index.len() {
+            state.generating = false;
+            return;
+        }
+    
+        // Get unvisited neighbors
+        let current_neighbours = get_unvisited_neighbours(state.current_cell_index, cells, columns, rows);
+    
+        if current_neighbours.len() > 0 {
+            // Mark current cell as visited and store cell index in visited stack
+            cells[state.current_cell_index].visited = true;
+            state.visited_cell_index.push(state.current_cell_index);
+        
+            // Pick random neighbor to move to
+            let neighbour_chosen = rand::gen_range(0, current_neighbours.len());
+            let next_cell = current_neighbours[neighbour_chosen];
+            cells[current_neighbours[neighbour_chosen]].visited = true;
+        
+            // Remove walls between cells
+            remove_walls(current_neighbours[neighbour_chosen], state.current_cell_index, cells);
+        
+            // Add current to backtracking stack
+            state.backtracking_stack.push(state.current_cell_index);
+        
+            // Move to new cell
+            state.current_cell_index = next_cell;
+        } 
+        else {
+            // No neighbors, need to backtrack
+            if state.backtracking_stack.len() == 0 {
+                if state.visited_cell_index.len() == cells.len() {
+                    state.generating = false;
+                } 
+                else {
+                    // Handle unvisited cells like before
+                    state.current_cell_index = cells.len() - 1;
+                    cells[state.current_cell_index].visited = true;
+                    state.visited_cell_index.push(state.current_cell_index);
+                    
+                    // Connect to visited neighbor
+                    let left_neighbor = state.current_cell_index - 1;
+                    if cells[left_neighbor].visited {
+                        remove_walls(state.current_cell_index, left_neighbor, cells);
+                    }
+                }
+            } 
+            else {
+                state.current_cell_index = state.backtracking_stack.pop().unwrap();
+            }
+        }
     }
 }
 
@@ -77,16 +153,16 @@ fn draw_maze_unanimated(cells: &Vec<Cell>, columns_size: i32, row_size: i32) {
 
         //draw lines on active walls
         if cell.bottom_active {
-            draw_line(x, y + row_size as f32, x + columns_size as f32, y + row_size as f32, 1.0, line_colour);
+            draw_line(x, y + row_size as f32, x + columns_size as f32, y + row_size as f32, 3.0, line_colour);
         }
         if cell.top_active {
-            draw_line(x, y, x + columns_size as f32, y, 1.0, line_colour);
+            draw_line(x, y, x + columns_size as f32, y, 3.0, line_colour);
         }
         if cell.right_active {
-            draw_line(x + columns_size as f32, y, x + columns_size as f32, y + row_size as f32, 1.0, line_colour);
+            draw_line(x + columns_size as f32, y, x + columns_size as f32, y + row_size as f32, 3.0, line_colour);
         }
         if cell.left_active {
-            draw_line(x, y, x, y + row_size as f32, 1.0, line_colour);
+            draw_line(x, y, x, y + row_size as f32, 3.0, line_colour);
         }
     }
 }
@@ -160,9 +236,23 @@ fn generate_maze(cells: &mut Vec<Cell>, c: i32, r: i32) {
     while generating {
         //check if this cell has been visited
         if cells.len() == visited_cell_index.len() {
+            
+            // Before ending generation, check last cell
+            let last_cell = cells.len() - 1;
+
+            if cells[last_cell].left_active && cells[last_cell].top_active {
+                // Last cell is isolated, try to connect it
+                if cells[last_cell].col_position > 0 {
+                    // Connect to left neighbor
+                    remove_walls(last_cell, last_cell - 1, cells);
+                } 
+                else if cells[last_cell].row_position > 0 {
+                    // Connect to top neighbor
+                    remove_walls(last_cell, last_cell - c as usize, cells);
+                }
+            }
             //generation complete
             generating = false;
-
         }
         else {        
             //get current neighbours of the cell
@@ -191,12 +281,30 @@ fn generate_maze(cells: &mut Vec<Cell>, c: i32, r: i32) {
                 current_cell_index = next_cell;
             }
             else {
-                //no viable neighbours, we need to backtrack
+                //no viable neighbours, we need to backtrack           
 
                 if backtracking_stack.len() == 0 {
-                    //is empty, generation is complete
-
-                    generating = false;
+                    if visited_cell_index.len() == cells.len() {
+                        generating = false;
+                    } 
+                    else {
+                        // Move to last unvisited cell directly
+                        current_cell_index = cells.len() - 1;
+                        cells[current_cell_index].visited = true;  // Mark it visited!
+                        visited_cell_index.push(current_cell_index);
+                        
+                        // Connect to one of its neighbors (prefer left)
+                        let left_neighbor = current_cell_index - 1;
+                        if cells[left_neighbor].visited {
+                            remove_walls(current_cell_index, left_neighbor, cells);
+                        } 
+                        else {
+                            let top_neighbor = current_cell_index - c as usize;
+                            if cells[top_neighbor].visited {
+                                remove_walls(current_cell_index, top_neighbor, cells);
+                            }
+                        }
+                    }
                 }
                 else {
                     //save cell index to last position
@@ -248,10 +356,6 @@ fn remove_walls(neighbour: usize, c_index: usize, cells: &mut Vec<Cell>) {
         cells[c_index].top_active = false;
     }
 
-    //remove top of first cell wall and bottom of last cell wall
-
-    cells[0].top_active = false;
-
 }
 
 fn cell_setup(c: i32, r: i32) -> Vec<Cell>{
@@ -274,5 +378,24 @@ fn cell_setup(c: i32, r: i32) -> Vec<Cell>{
             }
         }
 
+        // Remove top wall of first cell (entrance)
+        cells[0].top_active = false;
+
+        // Remove bottom wall of last cell (exit)
+        let last_cell = cells.len() - 1;
+        cells[last_cell].bottom_active = false;
+
         return cells;
+}
+
+fn initialise_maze_state() -> MazeState {
+
+    let mut maze_state = MazeState {
+        visited_cell_index: Vec::new(),
+        backtracking_stack: Vec::new(),
+        current_cell_index: 0,
+        generating: true
+    };
+
+    return maze_state;
 }
