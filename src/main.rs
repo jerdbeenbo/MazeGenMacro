@@ -1,10 +1,9 @@
-use macroquad::prelude::*;
+mod dijkstra;
 
+use macroquad::{prelude::*, rand::srand};
 /*
     Upgrades:
     Have the generation run on multiple threads to speed up times
-    Animate maze generation
-    Wait for input for maze generation (different input for animated or not)
     Add a "completion line" option after maze is generated -> solve_maze()
 
 */
@@ -22,7 +21,12 @@ struct Cell {
     right_active: bool,
 
     //has the maze generation algorithm travelled to this cell yet?
-    visited: bool
+    visited: bool,
+
+    //Dijkstra specific
+    distance_from_start: i32,
+    previous_cell_index: i32,
+    settled: bool
 }
 
 //Structure for holding our state (used for animation)
@@ -41,6 +45,9 @@ async fn main() {
     let screen_height: f32 = 800.0;
     request_new_screen_size(800.0, 830.0);
 
+    //generate a new seed for the rand function
+    srand(miniquad::date::now() as u64);
+
     //constants
     let columns = 40;
     let rows = 40; // -> Columns and rows should be cleany dividable into screen width/height
@@ -58,6 +65,15 @@ async fn main() {
     //generate_maze(&mut cells, columns, rows);
 
     let mut show_maze: bool = false;
+    let mut solve_maze: bool = false;
+
+    /*
+    
+        *----------------------*
+        |    MAIN GAME LOOP    |
+        *----------------------*
+
+     */
 
     loop {
         clear_background(GRAY);
@@ -65,15 +81,25 @@ async fn main() {
         if is_key_pressed(KeyCode::G) {
             show_maze = true;
         }
+
+        if is_key_pressed(KeyCode::S) && show_maze == true {
+            //solve maze
+            solve_maze = true;
+        }
     
         if show_maze {
             // Draw the current state of the maze
-            draw_maze_unanimated(&cells, column_size, row_size);
+            draw_maze_unanimated(&cells, column_size, row_size, maze_state.current_cell_index);
     
             // If still generating, do one step
             if maze_state.generating {
                 generate_maze_step(&mut cells, &mut maze_state, columns, rows);
             }
+        }
+
+        if solve_maze {
+            //draw the current state of the solution
+            dijkstra::run_dijkstras(&cells, columns, rows);
         }
     
         next_frame().await
@@ -141,15 +167,25 @@ fn generate_maze_step(cells: &mut Vec<Cell>, state: &mut MazeState, columns: i32
     }
 }
 
-fn draw_maze_unanimated(cells: &Vec<Cell>, columns_size: i32, row_size: i32) {
+fn draw_maze_unanimated(cells: &Vec<Cell>, columns_size: i32, row_size: i32, current_cell: usize) {
 
     let line_colour: Color = BLACK;
 
     //loop through all cells
-    for cell in cells {
-
+    for (index, cell) in cells.iter().enumerate() {
         let x: f32 = cell.col_position as f32 * columns_size as f32;
         let y: f32 = cell.row_position as f32 * row_size as f32;
+
+        // Highlight current cell
+        if index == current_cell {
+            draw_rectangle(
+                x, 
+                y, 
+                columns_size as f32, 
+                row_size as f32, 
+                BLUE
+            );
+        }
 
         //draw lines on active walls
         if cell.bottom_active {
@@ -365,15 +401,19 @@ fn cell_setup(c: i32, r: i32) -> Vec<Cell>{
         //cell setup
         for col in 0..(c as i32) { //NEEDS TO BE THE SAME AS COLUMNS  
             for row in 0..(r as i32) { //NEEDS TO BE THE SAME AS ROWS
-                //draw_rectangle_lines((i*column_size) as f32, (x*row_size) as f32, column_size as f32, row_size as f32, 1.0, BLACK);
                 cells.push(Cell { 
                     row_position: row, 
                     col_position: col, 
                     top_active: true, 
                     bottom_active: true, 
                     left_active: true, 
-                    right_active: true, 
-                    visited: false // -> Initialise with a full "grid" with all walls active and fully unvisited
+                    right_active: true, // -> Initialise with a full "grid" with all walls active and fully unvisited
+                    visited: false,
+
+
+                    distance_from_start: 100, //arbitrary "infinity"
+                    previous_cell_index: 0,
+                    settled: false,
                 });
             }
         }
@@ -390,7 +430,7 @@ fn cell_setup(c: i32, r: i32) -> Vec<Cell>{
 
 fn initialise_maze_state() -> MazeState {
 
-    let mut maze_state = MazeState {
+    let maze_state = MazeState {
         visited_cell_index: Vec::new(),
         backtracking_stack: Vec::new(),
         current_cell_index: 0,
