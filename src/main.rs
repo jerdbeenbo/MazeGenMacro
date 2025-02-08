@@ -24,8 +24,8 @@ struct Cell {
     visited: bool,
 
     //Dijkstra specific
-    distance_from_start: f32,
-    previous_cell_index: Option<usize>,
+    distance_from_start: i32,
+    previous_cell_index: i32,
     settled: bool
 }
 
@@ -99,7 +99,7 @@ async fn main() {
 
         if solve_maze {
             //draw the current state of the solution
-            dijkstra::run_dijkstras(&mut cells, columns, rows);
+            dijkstra::run_dijkstras(&cells, columns, rows);
         }
     
         next_frame().await
@@ -411,8 +411,8 @@ fn cell_setup(c: i32, r: i32) -> Vec<Cell>{
                     visited: false,
 
 
-                    distance_from_start: f32::INFINITY, //arbitrary "infinity"
-                    previous_cell_index: None,
+                    distance_from_start: 100, //arbitrary "infinity"
+                    previous_cell_index: 0,
                     settled: false,
                 });
             }

@@ -4,85 +4,26 @@
 
 */
 
-use std::f32::INFINITY;
-
 use crate::Cell;
 
 
 
-pub fn run_dijkstras(cells: &mut Vec<Cell>, columns: i32, rows: i32) {
+pub fn run_dijkstras(cells: &Vec<Cell>, columns: i32, rows: i32) {
 
     //start at position 0
-    let mut current_cell_index: usize = 0;
+    let current_cell_index: usize = 0;
 
-    println!("{}",current_cell_index);
-
-    //initialise the distance in cell 0 to 0
-    cells[current_cell_index].distance_from_start = 0.0;
-
-    let mut neighbour_infinity: bool = false;
-
-    let mut solving: bool = true;
+    let solving: bool = true;
     while solving {
         
         //find unvisited cell (neighbour) with the smallest distance
-        let shortest_neighbour_index: usize = get_shortest_neighbour(current_cell_index, cells, columns, rows);
-        
-        //check if the shortest distance found is STILL infinity AND there are no other settled cells to explore
-        if cells[shortest_neighbour_index].distance_from_start == f32::INFINITY{
-            //we are stuck, break the loop
-            neighbour_infinity = true;
-        }
-
-        //have this complex logic locked behind a boolean check so it doesn't run every loop cycle, only if the algorithm is stuck
-        if neighbour_infinity {
-            let mut unusable_cells: usize = 0;
-            //check if there are no more unsettled cells to explore
-            for c in 0..cells.len() {
-                //check each cells distance from start and settled status
-                if cells[c].settled == true || cells[c].distance_from_start == f32::INFINITY{
-                    unusable_cells = unusable_cells + 1;
-                }
-            }
-
-            //check if there is anything left to explore
-            if unusable_cells == cells.len() {
-                //nothing left to explore
-                solving = false;
-            }
-        }
-
-        //mark current cell that we are in as settled (visited for dijkstras)
-        cells[current_cell_index].settled = true;
-
-        //move to the shortest neighbour
-        current_cell_index = shortest_neighbour_index;
-
-        if current_cell_index == &cells.len() - 1 {
-            //reached the last cell (dijkstras solved)
-            solving = false;
-        }
-
+        let shortest_neighbour_index: usize = get_shortest_neighbour(current_cell_index, &cells, columns, rows);
     }
-
-    //reconstruct the path back to the start
-    let mut dijkstra_path: Vec<usize> = Vec::new();
-    let length: &usize = &cells.len();
-    current_cell_index = length - 1;
-
-    //reconstruct starting at the end and working back to the start
-    while current_cell_index != 0 {
-        dijkstra_path.push(current_cell_index);
-        current_cell_index = cells[current_cell_index].previous_cell_index.unwrap(); //unwrap because it is an option
-    }
-
-    //add start cell to the path
-    dijkstra_path.push(0);
 
 }
 
 //returns INDEX of cells[] cell
-fn get_shortest_neighbour(index: usize, cells: &mut Vec<Cell>, columns: i32, rows: i32) -> usize{
+fn get_shortest_neighbour(index: usize, cells: &Vec<Cell>, columns: i32, rows: i32) -> usize{
 
     let columns_as_usize: usize = columns as usize;
 
@@ -153,26 +94,12 @@ fn get_shortest_neighbour(index: usize, cells: &mut Vec<Cell>, columns: i32, row
 
     
     //determine which neighbour is the shortest from list of neighbours
-    let mut shortest_distance = f32::INFINITY;
-    let mut shortest_index = 0;
-    
-    for &neighbor_index in &neighbours {
-        let potential_distance = cells[index].distance_from_start + 1.0;
-        
-        // If we found a shorter path to this neighbor
-        if potential_distance < cells[neighbor_index].distance_from_start {
-            // We would update the distance here, but Cell needs to be mutable
-            cells[neighbor_index].distance_from_start = potential_distance;
-            cells[neighbor_index].previous_cell_index = Some(index);
-        }
-        
-        // Keep track of neighbor with shortest distance
-        if cells[neighbor_index].distance_from_start < shortest_distance {
-            shortest_distance = cells[neighbor_index].distance_from_start;
-            shortest_index = neighbor_index;
-        }
+
+    for n in &neighbours {
+        println!("{}", n);
     }
-    
-    return shortest_index;
+
+    //return
+    return neighbours[0];
 
 }
